@@ -1,0 +1,134 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Arial, sans-serif;
+  background-color: white;
+  color: #1e3932;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 40px;
+  border-bottom: 1px solid #ddd;
+  background-color: white;
+  position: sticky;
+  top: 0;
+}
+
+.logo img {
+  height: 100px;
+}
+
+.menu a{
+  margin: 0 20px;
+  font-weight: bold;
+  text-decoration: none;
+  color: black;
+}
+
+.acciones {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.ubicacion {
+  color: black;
+  text-decoration: none;
+  font-weight: bold;
+}
+
+.ubicacion i {
+  margin-right: 5px;
+}
+
+.CuadroBlanco {
+  border: 1px solid black;
+  background: none;
+  padding: 6px 14px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.CuadroNegro{
+  background-color: black;
+  color: white;
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: none;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.inicio {
+  padding: 40px 50px;
+}
+
+.inicio p {
+  font-size: 20px;
+  margin-bottom: 10px;
+}
+
+.inicio h1 {
+  font-size: 30px;
+  font-weight: bold;
+}
+
+.categoria {
+  padding: 20px 50px;
+}
+
+.categoria h2 {
+  font-size: 22px;
+  margin-bottom: 10px;
+}
+
+.categoria hr {
+  margin: 10px 0 30px;
+  border: none;
+  height: 1px;
+  background-color: white;
+}
+
+.productos {
+  display: flex;
+  justify-content: space-around;
+  flex-wrap: wrap;
+  gap: 40px;
+  text-align: center;
+}
+
+.producto {
+  width: 180px;
+}
+
+.img-container {
+  background-color: #1e3932;
+  border-radius: 50%;
+  padding: 20px;
+  width: 150px;
+  height: 150px;
+  margin: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.img-container img {
+  width: 100%;
+  height: auto;
+  border-radius: 50%;
+}
+
+.producto p {
+  margin-top: 10px;
+  font-weight: bold;
+  font-size: 16px;
+}
