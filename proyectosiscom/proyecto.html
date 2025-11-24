@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Control Casa IoT - MQTT</title>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <style>
+    :root{
+      --bg:#0f172a; --card:#0b1220; --accent:#06b6d4; --muted:#94a3b8; --white:#f8fafc;
+      --success:#10b981; --danger:#ef4444;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family:Inter,Arial,Helvetica,sans-serif; background:linear-gradient(180deg,#071024 0%, #0b1422 100%); color:var(--white);
+      -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+    }
+    .app { max-width:980px; margin:18px auto; padding:18px; }
+    header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; }
+    header h1{font-size:20px;margin:0}
+    .grid { display:grid; grid-template-columns: 1fr 380px; gap:16px; align-items:start; }
+    .card { background:rgba(255,255,255,0.03); padding:14px; border-radius:12px; box-shadow:0 8px 24px rgba(2,6,23,0.6); }
+    label{display:block;font-size:12px;color:var(--muted); margin-top:8px}
+    input, select, button { width:100%; padding:10px; margin-top:8px; border-radius:8px; border: none; font-size:14px; }
+    input, select { background: rgba(255,255,255,0.03); color:var(--white); }
+    button.big { background: linear-gradient(90deg,var(--accent), #0ea5a4); color: #021; font-weight:700; cursor:pointer; border-radius:10px; }
+    button.flat { background: transparent; border:1px solid rgba(255,255,255,0.06); color:var(--white); cursor:pointer; }
+    .row { display:flex; gap:10px; }
+    .row > * { flex:1; }
+    .small { font-size:13px; color:var(--muted); }
+    .status { font-weight:700; }
+    .status.connected { color: var(--success); }
+    .status.disconnected { color: var(--danger); }
+    .tabs { display:flex; gap:8px; margin-top:8px; }
+    .tab { padding:8px 12px; background:rgba(255,255,255,0.02); border-radius:8px; cursor:pointer; }
+    .tab.active { background: linear-gradient(90deg,#123243,#0b5563); }
+    .log { height:360px; overflow:auto; background: rgba(0,0,0,0.25); padding:8px; border-radius:8px; font-size:13px; color:#e6eef3; }
+    .kpis { display:flex; gap:10px; margin-top:8px; }
+    .kpi { flex:1; background:rgba(255,255,255,0.02); padding:10px; border-radius:8px; text-align:center; }
+    footer { margin-top:12px; text-align:center; color:var(--muted); font-size:13px; }
+    @media (max-width:900px){ .grid{ grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>Control Casa IoT</h1>
+      <div>
+        Estado: <span id="connStatus" class="status disconnected">Desconectado</span>
+      </div>
+    </header>
+
+    <div class="grid">
+      <!-- Left column: controles -->
+      <div>
+        <div class="card">
+          <h3>Conexión MQTT</h3>
+          <label>Broker (wss):</label>
+          <div class="row">
+            <input id="brokerHost" value="broker.emqx.io" />
+            <input id="brokerPort" value="8084" />
+          </div>
+          <label>Path (p. ej. /mqtt)</label>
+          <input id="brokerPath" value="/mqtt" />
+          <label>Usuario</label>
+          <input id="brokerUser" value="proy_casa" />
+          <label>Contraseña</label>
+          <input id="brokerPass" value="siscom123" />
+          <div class="row">
+            <button id="btnConnect" class="big">Conectar</button>
+            <button id="btnDisconnect" class="flat">Desconectar</button>
+          </div>
+          <p class="small">El cliente usa WebSocket seguro (wss). Cambia usuario/host si lo necesitas.</p>
+        </div>
+
+        <div style="height:12px"></div>
+
+        <div class="card">
+          <h3>Controles rápidos</h3>
+          <!-- Garage -->
+          <label>Garage</label>
+          <div class="row">
+            <button onclick="publishGarage('ABRIR')" class="big">Abrir</button>
+            <button onclick="publishGarage('CERRAR')" class="flat">Cerrar</button>
+          </div>
+
+          <hr style="margin:12px 0; border:none; height:1px; background:rgba(255,255,255,0.04)" />
+
+          <!-- Ventilador -->
+          <label>Ventilador</label>
+          <div class="row">
+            <button onclick="publishVent('MANUAL_ON')" class="big">Manual ON</button>
+            <button onclick="publishVent('MANUAL_OFF')" class="flat">Manual OFF</button>
+          </div>
+          <div style="margin-top:8px">
+            <button onclick="publishVent('AUTO')" class="big">Auto</button>
+            <small class="small">Auto: se enciende 10s cuando temp &gt; 25°C</small>
+          </div>
+
+          <hr style="margin:12px 0; border:none; height:1px; background:rgba(255,255,255,0.04)" />
+
+          <!-- Luces -->
+          <h4>Luces</h4>
+          <label>Modo global</label>
+          <div class="row">
+            <select id="modoGlobal">
+              <option value="manual">manual</option>
+              <option value="vacaciones">vacaciones</option>
+              <option value="vacaciones_aleatorio">vacaciones_aleatorio</option>
+            </select>
+            <button onclick="applyModoGlobal()" class="big">Aplicar</button>
+          </div>
+
+          <div style="height:8px"></div>
+
+          <label>LED</label>
+          <select id="ledSelect">
+            <option value="led1">led1</option>
+            <option value="led2">led2</option>
+            <option value="led3">led3</option>
+          </select>
+
+          <label>Color</label>
+          <select id="colorSelect">
+            <option value="red">red</option>
+            <option value="green">green</option>
+            <option value="blue">blue</option>
+            <option value="purple">purple</option>
+            <option value="cyan">cyan</option>
+            <option value="yellow">yellow</option>
+            <option value="white">white</option>
+          </select>
+
+          <div class="row">
+            <button onclick="ledOn()" class="big">Encender</button>
+            <button onclick="ledOff()" class="flat">Apagar</button>
+          </div>
+
+          <hr style="margin:12px 0; border:none; height:1px; background:rgba(255,255,255,0.04)" />
+
+          <h4>Vacaciones (por LED)</h4>
+          <label>LED</label>
+          <select id="ledVac">
+            <option value="led1">led1</option>
+            <option value="led2">led2</option>
+            <option value="led3">led3</option>
+          </select>
+          <div class="row">
+            <div>
+              <label>Inicio</label>
+              <input id="inicioVac" type="time" />
+            </div>
+            <div>
+              <label>Fin</label>
+              <input id="finVac" type="time" />
+            </div>
+          </div>
+          <button onclick="programarVacaciones()" class="big">Programar horario</button>
+
+          <hr style="margin:12px 0; border:none; height:1px; background:rgba(255,255,255,0.04)" />
+
+          <h4>Vacaciones aleatorio (global)</h4>
+          <div class="row">
+            <div>
+              <label>Inicio</label>
+              <input id="inicioAle" type="time" />
+            </div>
+            <div>
+              <label>Fin</label>
+              <input id="finAle" type="time" />
+            </div>
+          </div>
+          <button onclick="programarAleatorio()" class="big">Programar aleatorio</button>
+        </div>
+      </div>
+
+      <!-- Right column: logs y estado -->
+      <aside>
+        <div class="card">
+          <h3>Estado y logs</h3>
+          <div class="kpis">
+            <div class="kpi">
+              <div style="font-size:13px">Garage</div>
+              <div id="kpiGarage">—</div>
+            </div>
+            <div class="kpi">
+              <div style="font-size:13px">Ventilador</div>
+              <div id="kpiFan">—</div>
+            </div>
+            <div class="kpi">
+              <div style="font-size:13px">Modo</div>
+              <div id="kpiModo">—</div>
+            </div>
+          </div>
+
+          <label style="margin-top:10px">Logs MQTT</label>
+          <div id="log" class="log"></div>
+          <div style="height:8px"></div>
+          <button onclick="clearLog()" class="flat">Limpiar logs</button>
+        </div>
+      </aside>
+    </div>
+
+    <footer>
+      Broker por defecto: <strong>wss://broker.emqx.io:8084/mqtt</strong> — Usuario: <strong>proy_casa</strong> — Contraseña: <strong>siscom123</strong>
+    </footer>
+  </div>
+
+  <script>
+    // -----------------------
+    // Config & topics
+    // -----------------------
+    const TOPICS = [
+      "casa/modo",
+      "casa/led1/control","casa/led2/control","casa/led3/control",
+      "casa/led1/horario","casa/led2/horario","casa/led3/horario",
+      "casa/garage","casa/ventilador","casa/vacaciones_aleatorio/horario"
+    ];
+
+    let client = null;
+
+    // UI helpers
+    const logEl = document.getElementById('log');
+    function log(msg){
+      const div = document.createElement('div');
+      div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      logEl.prepend(div);
+    }
+    function clearLog(){ logEl.innerHTML = ''; }
+
+    function setConnStatus(connected){
+      const el = document.getElementById('connStatus');
+      if(connected){
+        el.textContent = 'Conectado';
+        el.classList.remove('disconnected'); el.classList.add('connected');
+      } else {
+        el.textContent = 'Desconectado';
+        el.classList.remove('connected'); el.classList.add('disconnected');
+      }
+    }
+
+    // -----------------------
+    // Connect / Disconnect
+    // -----------------------
+    document.getElementById('btnConnect').addEventListener('click', () => {
+      const host = document.getElementById('brokerHost').value.trim();
+      const port = document.getElementById('brokerPort').value.trim();
+      const path = document.getElementById('brokerPath').value.trim() || '/mqtt';
+      const user = document.getElementById('brokerUser').value.trim();
+      const pass = document.getElementById('brokerPass').value;
+
+      if(!host || !port){ alert('Ingresa host y puerto del broker.'); return; }
+
+      const url = `wss://${host}:${port}${path}`;
+      connectMQTT(url, user, pass);
+    });
+
+    document.getElementById('btnDisconnect').addEventListener('click', () => {
+      if(client) {
+        client.end(true);
+        client = null;
+        setConnStatus(false);
+        log('Desconectado por usuario');
+      }
+    });
+
+    function connectMQTT(url, username='', password=''){
+      if(client && client.connected){ log('Ya estabas conectado.'); return; }
+      log('Conectando a ' + url + ' ...');
+
+      const opts = {
+        username: username || undefined,
+        password: password || undefined,
+        clean: true,
+        connectTimeout: 4000,
+        reconnectPeriod: 3000
+      };
+
+      try {
+        client = mqtt.connect(url, opts);
+      } catch(e){
+        log('Error creando cliente MQTT: ' + e.message);
+        setConnStatus(false);
+        return;
+      }
+
+      client.on('connect', () => {
+        log('Conectado ✔️');
+        setConnStatus(true);
+        // subscribe a topics
+        TOPICS.forEach(t => {
+          client.subscribe(t, {qos:0}, (err) => {
+            if(!err) log('Suscrito a ' + t);
+            else log('Error suscripción ' + t + ': ' + err);
+          });
+        });
+      });
+
+      client.on('reconnect', () => {
+        log('Reconectando al broker...');
+      });
+
+      client.on('close', () => {
+        log('Conexión cerrada');
+        setConnStatus(false);
+      });
+
+      client.on('error', (err) => {
+        log('Error MQTT: ' + (err && err.message ? err.message : err));
+      });
+
+      client.on('message', (topic, message) => {
+        const payload = message.toString();
+        log('RECIBIDO ' + topic + ' → ' + payload);
+
+        // Actualizar KPIs simples si vienen en JSON
+        try {
+          const p = JSON.parse(payload);
+          if(topic === 'casa/garage'){ document.getElementById('kpiGarage').innerText = p.estado || payload; }
+          if(topic === 'casa/ventilador'){ document.getElementById('kpiFan').innerText = p.modo || payload; }
+          if(topic === 'casa/modo'){ document.getElementById('kpiModo').innerText = p.modo || payload; }
+        } catch(e){
+          // no JSON -> mostrar tal cual en KPI cuando aplique
+        }
+      });
+    }
+
+    // -----------------------
+    // Publish helpers (según tu spec)
+    // -----------------------
+    function publish(topic, obj){
+      if(!client || !client.connected){ alert('No estás conectado al broker. Haz click en Conectar.'); return; }
+      const msg = JSON.stringify(obj);
+      client.publish(topic, msg, {qos:0}, (err) => {
+        if(err) log('Error publicando ' + topic + ': ' + err);
+        else log('PUBLICADO ' + topic + ' → ' + msg);
+      });
+    }
+
+    // Garage
+    function publishGarage(action){
+      publish('casa/garage', {estado: action});
+    }
+
+    // Ventilador
+    function publishVent(modo){
+      publish('casa/ventilador', {modo: modo});
+    }
+
+    // Luces: global mode
+    function applyModoGlobal(){
+      const m = document.getElementById('modoGlobal').value;
+      publish('casa/modo', {modo: m});
+    }
+
+    // Luces manual
+    function ledOn(){
+      const led = document.getElementById('ledSelect').value;
+      const color = document.getElementById('colorSelect').value;
+      publish(`casa/${led}/control`, {estado: 'ON', color: color});
+    }
+    function ledOff(){
+      const led = document.getElementById('ledSelect').value;
+      publish(`casa/${led}/control`, {estado: 'OFF'});
+    }
+
+    // Vacaciones per LED
+    function programarVacaciones(){
+      const led = document.getElementById('ledVac').value;
+      const inicio = document.getElementById('inicioVac').value;
+      const fin = document.getElementById('finVac').value;
+      if(!inicio || !fin){ alert('Selecciona inicio y fin.'); return; }
+      publish(`casa/${led}/horario`, {inicio: inicio, fin: fin});
+    }
+
+    // Vacaciones aleatorio
+    function programarAleatorio(){
+      const inicio = document.getElementById('inicioAle').value;
+      const fin = document.getElementById('finAle').value;
+      if(!inicio || !fin){ alert('Selecciona inicio y fin.'); return; }
+      publish('casa/vacaciones_aleatorio/horario', {inicio: inicio, fin: fin});
+    }
+
+    // Auto-connect to default on page load? (optional)
+    // Uncomment next lines if you want auto-connect using defaults on load:
+    // window.addEventListener('load', () => {
+    //   const host = document.getElementById('brokerHost').value;
+    //   const port = document.getElementById('brokerPort').value;
+    //   const path = document.getElementById('brokerPath').value;
+    //   const user = document.getElementById('brokerUser').value;
+    //   const pass = document.getElementById('brokerPass').value;
+    //   connectMQTT(`wss://${host}:${port}${path}`, user, pass);
+    // });
+
+  </script>
+</body>
+</html>
